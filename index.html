@@ -1806,6 +1806,12 @@
       display: block
     }
 
+    .form-status.sending {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--fg-muted);
+      border: 1px solid var(--border);
+    }
+
     .form-status.ok {
       background: rgba(229, 25, 55, 0.12);
       color: var(--fg);
@@ -2091,6 +2097,9 @@
       }
     }
   </style>
+
+  <!-- EmailJS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 
 <body>
@@ -3153,9 +3162,15 @@
       modalBack.addEventListener('click', function (e) { if (e.target === modalBack) closeModal(); });
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeModal(); closeMenu(); } });
 
-      /* ---------- CONTACT FORM ---------- */
+      /* ---------- CONTACT FORM (EmailJS Integration) ---------- */
       var form = document.getElementById('contactForm');
       var status = document.getElementById('formStatus');
+      var submitBtn = form ? form.querySelector('button[type="submit"]') : null;
+
+      var EMAILJS_SERVICE_ID = 'service_kegp22d';
+      var EMAILJS_TEMPLATE_ID = 'template_xp7m16v';
+      var EMAILJS_PUBLIC_KEY = 'H5g0Cm_kEcnqToHhg';
+
       function setError(field, msg) {
         var wrap = form.querySelector('[data-field="' + field + '"]');
         if (!wrap) return;
@@ -3169,6 +3184,8 @@
         var email = form.email.value.trim();
         var service = form.service.value;
         var message = form.message.value.trim();
+        var phone = form.phone.value.trim() || '—';
+        var company = form.company.value.trim() || '—';
         var valid = true;
 
         setError('name', ''); setError('email', ''); setError('service', ''); setError('message', '');
@@ -3178,7 +3195,7 @@
         if (!service) { setError('service', 'Please choose a service focus.'); valid = false; }
         if (message.length < 10) { setError('message', 'Please provide a few project details.'); valid = false; }
 
-        status.classList.remove('show', 'ok', 'bad');
+        status.classList.remove('show', 'ok', 'bad', 'sending');
 
         if (!valid) {
           status.textContent = 'Please correct the highlighted fields and resubmit.';
@@ -3186,16 +3203,52 @@
           return;
         }
 
-        var body = 'Name: ' + name + '\nEmail: ' + email +
-          '\nPhone: ' + (form.phone.value.trim() || '—') +
-          '\nCompany: ' + (form.company.value.trim() || '—') +
-          '\nService focus: ' + service +
-          '\n\nProject Brief:\n' + message;
-        var mailto = 'mailto:samy555hany@gmail.com?subject=' + encodeURIComponent('New Client Inquiry — ' + name) + '&body=' + encodeURIComponent(body);
+        if (!EMAILJS_PUBLIC_KEY || EMAILJS_PUBLIC_KEY === 'YOUR_PUBLIC_KEY') {
+          status.textContent = 'EmailJS Public Key is missing. Please configure it.';
+          status.classList.add('show', 'bad');
+          return;
+        }
 
-        status.textContent = 'Thank you, ' + name.split(' ')[0] + ' — launching your email client to send your brief to London Advertisement Agency.';
-        status.classList.add('show', 'ok');
-        window.location.href = mailto;
+        var originalBtnText = submitBtn ? submitBtn.textContent : 'Submit Project Inquiry';
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Transmitting inquiry...';
+        }
+        status.textContent = 'Transmitting your inquiry securely to London Advertisement Agency...';
+        status.classList.add('show', 'sending');
+
+        var templateParams = {
+          name: name,
+          from_name: name,
+          email: email,
+          from_email: email,
+          reply_to: email,
+          phone: phone,
+          company: company,
+          service: service,
+          message: message,
+          project_brief: message
+        };
+
+        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_PUBLIC_KEY)
+          .then(function () {
+            status.classList.remove('sending');
+            status.textContent = 'Thank you, ' + name.split(' ')[0] + '! Your project inquiry has been successfully received. We will get back to you within 24 hours.';
+            status.classList.add('ok');
+            form.reset();
+          })
+          .catch(function (err) {
+            console.error('EmailJS Send Error:', err);
+            status.classList.remove('sending');
+            status.textContent = 'Could not deliver inquiry automatically. Please contact us via WhatsApp or email.';
+            status.classList.add('bad');
+          })
+          .finally(function () {
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.textContent = originalBtnText;
+            }
+          });
       });
 
       /* Year Update */
